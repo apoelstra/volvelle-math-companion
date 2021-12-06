@@ -63,7 +63,7 @@
 \begin{minipage}[b]{0.3\linewidth}
   \begin{flushright}
     Andrew Poelstra\\
-    2021 November 27
+    2021 December 6
   \end{flushright}
 \end{minipage}
 \\
@@ -643,8 +643,213 @@ negation of our checksum. Remember that in $\fttwo$ negation is a no-op, so we'r
 
 \subsection{The Worksheet}
 
+As described in the last section, our checksum verification algorithm is: encode the
+message as a polynomial, take it mod $G(x)$, and compare it against the fixed string
+\texttt{SECRETSHARE32}. The checksum generation algorithm is essentially the same:
+append \texttt{SECRETSHARE32} in place of the checksum, take the resulting polynomial
+mod $G(x)$, then use the result as the actual checksum.
+
+How do we do this in practice? In short, we build up our polynomial two characters
+as a time: multiply by $x^2$, reduce, repeat. In detail:
+
+\paragraph{Checksum Verification.}
+
+\begin{enumerate}
+\item Take the prefix \texttt{ms1} and encode it as a bech32 human readable part (HRP),
+which works out to \texttt{RRQDN} (the process is to take the high 3 bits of each
+8-bit ASCII character, followed by 0, followed by the low 5 bits of each character).
+Prefix a 1, or \texttt{P}. The resulting initial polynomial is \texttt{PRRQDN}, or
+\[ x^5 + \binrep{3}x^4 + \binrep{3}x^3 + 0x^2 + \binrep{13}x + \binrep{19} \]
+Multiply this by $x^{13}$ and reduce it mod $G(x)$. The result will be
+\texttt{TXJXCH7MFTY2P}. This string is initially filled in in the checksum
+worksheet.
+
+\item Add the first 13 characters of the data to be checksummed. The result will
+be the residue of \texttt{ms1<first 13 user characters>}, and this is what the
+first two lines of the checksum worksheet compute.
+
+\item Multiply by $x^2$ and add the next two characters of data. This is done by
+shifting the characters two spaces to the left (equivalently, shifting all
+subsequent characters two spaces to the right).
+
+The result will be a 15-character row where the leftmost characters $\ell_1$
+and $\ell_2$ are the coefficients of $x^{13}$ and $x^{14}$.
+
+\item Reduce the whole string mod $G(x)$: to do this, we need to add the lower
+13 characters (which are unaffected by reduction since $G$ has degree 13) to
+the reduction of $\ell_1x^{14} + \ell_2x^{13}$.
+
+We obtain the latter reduction by looking up $\ell_1$ and $\ell_2$ in the
+giant provided "Checksum Table", which computes every possible reduction
+in Postscript.
+
+\item Repeat the previous two steps until you run out of data.
+\item Check that the final result is \texttt{SECRETSHARE32}.
+\end{enumerate}
+
+\paragraph{Checksum Generation.} This is basically identical to checksum verification,
+except that the final 13 characters are initially not available. On the worksheet these
+are colored pink to indicate to the user that she should stop filling random data into
+the cells.
+
+In the mathematical description we suggest putting \texttt{SECRETSHARE} in place of
+the checksum, then replacing it. It is equivalent to instead write \texttt{SECRETSHARE}
+in the final row of cells, which lays directly below the final 13 user-data cells, and
+``backsolve'' by then adding all the rows above it. This will place the residue, which
+is the desired checksum, in the correct place.
+
 \section{Secret Sharing}
 
+In the Mathematical Preliminaries section we described Lagrange interpolation and
+Shamir's Secret Sharing Scheme (SSSS). We defined the Fundamental Theorem of Computing
+SSSS With Volvelles as the observation that Lagrange interpolation allows evaluating
+a polynomial at a fixed point as an affine combination of its evaluations at other
+fixed points.
+
+As a consequence, any linear or affine relationship between the original evalutations
+will be preserved. We will come to this in a moment, but first let's describe the SSSS
+process.
+
+\subsection{Computing SSSS}
+
+There are two places where we use Lagrange interpolation:
+\begin{itemize}
+\item When creating a share with index $x$, we start with $k$ initial shares $x_1$,
+$x_2$, \ldots, $x_k$ whose indices are always the first $k$ symbols of the bech32
+alphabet \texttt{A}, \texttt{C}, \texttt{D}, etc.
+
+(There is an alternate process where the user starts with a fixed secret, in which
+case $x_1$ is \texttt{S} and the other $x_i$'s are shifted, but the rest is exactly
+the same.)
+\item When recovering a secret, we start with $k$ shares with indices $\{x_i\}_{i=1}^k$
+which are fixed during recovery but unpredictable in advance, and compute the
+\texttt{S} share.
+\end{itemize}
+
+In both cases, the computation is straightforward: evaluate \eqref{eq:linterp} as
+\[ p(x) = \sum_{i=1}^k \ell_i(x) y_i \]
+Here $y_i$ is the value of the $i$th share and $\ell_i(x)$ must be computed by the
+user. To avoid confusion, the user always computes $\ell_i(x)$ using the symbol
+alphabet rather than the bech32 alphabet. The process is:
+
+\begin{itemize}
+\item During share creation, the evaluation points $\{x_i\}$, which are the
+user's initial share indices, are always fixed. Therefore $\ell_i(x)$ is purely
+a function of $x$ (the index of the share to be created) and $k$. There aren't
+that many possibilities so we simply provide tables on the ``Constructing Shares''
+page.
+
+(It is instructive to modify the PostScript source for these tables to allow
+``deriving'' the initial shares. You will find that the index for the initial
+share under question is 1 ($\aleph$) while the index for all the other shares
+is 0 ($\times$).)
+
+\item During recovery, there are up to 31 outstanding non-\texttt{S} shares and
+the user has an arbitrary subset of $k$ of them. There are $\binom{31}k$
+possibilities, which for $k=2$ is a reasonable number --- 465 --- but for
+$k\geq3$ quickly grows out of hand.
+
+For $k = 2$ we provide a table, both in tabular form and in the form of a volvelle.
+This is what the ``Recover Share'' volvelle is, and at position $p$, window $w$ it
+computes
+\[ \ell_i(\texttt{S}) = \frac{w + \texttt{S}}{w + p} \]
+Here position $p$ is the index of share $y_i$ whose multiplier is being computed,
+and $w$ is the index of the other share. This is the only volvelle which takes two
+bech32 characters and outputs a symbol, so it is clear which volvelle she should
+use. Unfortunately, it is easy to get $p$ and $w$ confused. Is there a way we
+could make this more intuitive? Not that we could think of.
+
+For $k \geq 3$, for target share $p$ (index of $y_i$) with other shares
+$\{w_i\}_{i=1}^{k-1}$, we need to compute
+\[ \ell_i(\texttt{S}) = \prod_{i=1}^{k-1} \frac{w_i + \texttt{S}}{w_i + p} \]
+with notation chosen to highlight that \emph{the Lagrange basis polynomials for
+$k\geq3$ are products of the basis polynomials for $k=2$}.
+
+This fortuitous fact means that the user can compute polynomials $\ell_i(\texttt{S})$
+by looking up factors using the Recover Share volvelle, and then multiplying the
+results using the Multiplication slide chart.
+
+The multiplication slide chart is the only wheel which takes two symbols as input,
+so it is hard for the user to do the wrong thing here.
+\end{itemize}
+
+Once the user has computed the $\ell_i(x)$'s, the rest is simple: multiply each
+cell of $y_i$ (the value of the $i$th share, encoded in the bech32 alphabet) by
+$\ell_i(x)$ (computed above, encoded in the symbol alphabet) using the Translation
+volvelle.
+
+This volvelle is the only one that has both symbols and bech32 characters
+so it is hard for the user to do the wrong thing here.
+
+This will give the user $k$ translated shares $\hat{y}_i$, which she should then
+add together using the Addition volvelle. We have provided an addition worksheet
+to help keep everything straight.
+
+\subsection{SSSS and Checksumming}
+
+Once the user has computed her derived share(s) or recovered her secret \texttt{S}
+share, she will likely notice that the produced share header is of the correct form
+and has the correct index. This is cool to see but not mathematically surprising:
+the fixed parts of the header are produced by interpolating a constant polynomial
+and the share index is produced by interpolating the polynomial $f(x) = x$.
+
+What is more mathematically impressive is that the last 13 symbols of the polynomial
+will constitute a valid checksum for the resulting share. This is a consequence of
+the Fundamental Theorem, which says that any affine relationships will be preserved.
+
+In fact, in a complete Checksum Worksheet, \emph{every single cell} that the user
+fills in is an affine function of the share data. This means that if you pick an
+arbitrary cell, say, the fourth cell of the tenth row, you can use the above process
+to combine those cells from the initial shares' worksheets and produce the
+corresponding cell on the derived share's worksheet.
+
+This means in particular, that the final row (\texttt{SECRETSHARE32}) will be
+preserved, meaning that the checksum of the derived share will be correct. But it
+also means that, if the user uses the checksum worksheet to verify her share
+translation (which she should!) she can ``sanity check'' her work by pre-deriving
+cells.
+
+This is very exciting, because normally the Checksum Worksheet takes a long time
+to fill out and provides the user no feedback until the very end. We therefore
+recommend the following process for derived shares and recovery:
+\begin{enumerate}
+\item Before deriving any shares, complete Checksum Worksheets for the inital
+shares. (During construction these should be readily available; during recovery
+it's worth doing as a sanity check.)
+\item Derive the actual share, using the above method.
+\item Copy the share into the top diagonal of a fresh Checksum Worksheet
+\item Derive the cells of the bottom diagonal directly, in the same way that
+you derived the top diagonal.
+\item Start working through the worksheet.
+\end{enumerate}
+
+If, at any point, the computed value of a bottom diagonal square doesn't match
+the precomputed value, it means you made a mistake in that column. Re-derive the
+top and bottom values and redo the additions before continuing.
+
+\section{Conclusion and Acknowledgements}
+
+We thank the authors of SLIP39 for noticing the remarkable compatibility between
+SSSS and BCH codes (or any linear code), which enable user-computed SSSS. Even if
+SSSS were otherwise tractable to do, without checksumming it would be hopeless
+for users to recover from arithmetic and copying mistakes and this whole project
+would be unworkable.
+
+We thank Russell O'Connor for then noticing that by using a code over $\fttwo$
+rather than $\mathbb{F}_{1024}$, it is possible to do these computations by hand,
+and for putting together the initial prototype of this project which included
+the PostScript fundamentals to do computations with BCH codes, to draw 32-by-32
+volvelles, and to do 2-of-$n$ secret sharing.
+
+We also thank Micaela Paez for the amazing artwork that adorns the volvelles.
+
+From that point onward it was a trip to bring everything together, optimizing
+the layout of the volvelles and worksheets for user experience, reducing the
+total number of volvelles, introducing the slide rule, discovering how to localize
+Checksum Worksheet errors, and adding artwork and color.
+
+The result has been a remarkable, and even mathematically novel, project which
+fits together much better than any of us expected.
 
 \end{document}
 
