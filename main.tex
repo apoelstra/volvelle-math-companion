@@ -782,7 +782,7 @@ with it a ton of algebraic properties which are needed for analysis, so this
 is what is used in the literature.
 
 In practice it is common to use a string of all-bits-one for $m$. For our code,
-we chose characters which spell out \texttt{SECRETSHARE32}.
+we chose characters which spell out \vc{SECRETSHARE32}.
 
 \item The \textbf{checksum length} is the number of extra characters that
 need to be added to a string to ensure that it has the correct residue.
@@ -814,21 +814,21 @@ the standard generator of $\fttwo$,
 To checksum a string of bech32 characters $\{v_i\}_{i=1}^n$, we want to encode it
 as a polynomial
 \[ p(x) = x^n + \sum_{i=0}^{n-1} v^{n-i} x^i \]
-such that $p(x)$ mod $G(x)$ is equal to \texttt{SECRETSHARE32}, or
+such that $p(x)$ mod $G(x)$ is equal to \vc{SECRETSHARE32}, or
 \begin{align*}
 r(x) =
     &\binrep{16}x^{12} + \binrep{25}x^{11} + \binrep{24}x^{10} + \binrep{3}x^9 + \binrep{25}x^8 + \binrep{11}x^7\\
     &+ \binrep{16}x^6 + \binrep{23}x^5 + \binrep{29}x^4 + \binrep{3}x^3 + \binrep{25}x^2 + \binrep{17}x + \binrep{10}
 \end{align*}
 Remembering throughout that an $n$-degree polynomial has $(n+1)$ terms, the way that
-we do this is to concatenate the target residue \texttt{SECRETSHARE32} to our message
+we do this is to concatenate the target residue \vc{SECRETSHARE32} to our message
 $\{ v_i \}$, compute the resulting residue
 \begin{equation}
  \hat{p}(x) = x^{n+13} + \sum_{i=0}^{n+13-1} v^{n+13-i} x^{i} \textnormal{ mod } G(x)
  \label{eq:modg}
 \end{equation}
-We call the thirteen resulting characters the \texttt{checksum} and replace our
-copy of \texttt{SECRETSHARE32} with them
+We call the thirteen resulting characters the \textbf{checksum} and replace our
+copy of \vc{SECRETSHARE32} with them
 
 Why does this work? Our goal is to find a checksum such that, when it is concatenated
 to our original message, we get the correct residue mod $G(x)$. In Equation \eqref{eq:modg},
@@ -840,8 +840,8 @@ negation of our checksum. Remember that in $\fttwo$ negation is a no-op, so we'r
 
 As described in the last section, our checksum verification algorithm is: encode the
 message as a polynomial, take it mod $G(x)$, and compare it against the fixed string
-\texttt{SECRETSHARE32}. The checksum generation algorithm is essentially the same:
-append \texttt{SECRETSHARE32} in place of the checksum, take the resulting polynomial
+\vc{SECRETSHARE32}. The checksum generation algorithm is essentially the same:
+append \vc{SECRETSHARE32} in place of the checksum, take the resulting polynomial
 mod $G(x)$, then use the result as the actual checksum.
 
 How do we do this in practice? In short, we build up our polynomial two characters
@@ -850,17 +850,17 @@ as a time: multiply by $x^2$, add two new characters, reduce, repeat. In detail:
 \paragraph{Checksum Verification.}
 
 \begin{enumerate}
-\item Take the prefix \texttt{ms1} and encode it as a bech32 human readable part (HRP),
-which works out to \texttt{RRQDN} (the process is to take the high 3 bits of each
+\item Take the prefix \vc{ms1} and encode it as a bech32 human readable part (HRP),
+which works out to \vc{RRQDN} (the process is to take the high 3 bits of each
 8-bit ASCII character, followed by 0, followed by the low 5 bits of each character).
-Prefix a 1, or \texttt{P}. The resulting initial polynomial is \texttt{PRRQDN}, or
+Prefix a 1, or \vc{P}. The resulting initial polynomial is \vc{PRRQDN}, or
 \[ x^5 + \binrep{3}x^4 + \binrep{3}x^3 + 0x^2 + \binrep{13}x + \binrep{19} \]
 Multiply this by $x^{13}$ and reduce it mod $G(x)$. The result will be
-\texttt{TXJXCH7MFTY2P}. This string is initially filled in in the checksum
+\vc{TXJXCH7MFTY2P}. This string is initially filled in in the checksum
 worksheet.
 
 \item Add the first 13 characters of the data to be checksummed. The result will
-be the residue of \texttt{ms1<first 13 user characters>}, and this is what the
+be the residue of \vc{ms1<first 13 user characters>}, and this is what the
 first two lines of the checksum worksheet compute.
 
 \item Multiply by $x^2$ and add the next two characters of data. This is done by
@@ -879,7 +879,7 @@ giant provided "Checksum Table", which computes every possible reduction
 in PostScript.
 
 \item Repeat the previous two steps until you run out of data.
-\item Check that the final result is \texttt{SECRETSHARE32}.
+\item Check that the final result is \vc{SECRETSHARE32}.
 \end{enumerate}
 
 \paragraph{Checksum Generation.} This is basically identical to checksum verification,
@@ -887,8 +887,8 @@ except that the final 13 characters are initially not available. On the workshee
 are colored pink to indicate to the user that she should stop filling random data into
 the cells.
 
-In the mathematical description we suggest putting \texttt{SECRETSHARE} in place of
-the checksum, then replacing it. It is equivalent to instead write \texttt{SECRETSHARE}
+In the mathematical description we suggest putting \vc{SECRETSHARE} in place of
+the checksum, then replacing it. It is equivalent to instead write \vc{SECRETSHARE}
 in the final row of cells, which lays directly below the final 13 user-data cells, and
 ``backsolve'' by then adding all the rows above it. This will place the residue, which
 is the desired checksum, in the correct place.
@@ -911,14 +911,14 @@ There are two places where we use Lagrange interpolation:
 \begin{itemize}
 \item When creating a share with index $x$, we start with $k$ initial shares $x_1$,
 $x_2$, \ldots, $x_k$ whose indices are always the first $k$ symbols of the bech32
-alphabet \texttt{A}, \texttt{C}, \texttt{D}, etc.
+alphabet \vc{A}, \vc{C}, \vc{D}, etc.
 
 (There is an alternate process where the user starts with a fixed secret, in which
-case $x_1$ is \texttt{S} and the other $x_i$'s are shifted, but the rest is exactly
+case $x_1$ is \vc{S} and the other $x_i$'s are shifted, but the rest is exactly
 the same.)
 \item When recovering a secret, we start with $k$ shares with indices $\{x_i\}_{i=1}^k$
 which are fixed during recovery but unpredictable in advance, and compute the
-\texttt{S} share.
+\vc{S} share.
 \end{itemize}
 
 In both cases, the computation is straightforward: evaluate \eqref{eq:linterp} as
@@ -939,7 +939,7 @@ page.
 share under question is 1 ($\aleph$) while the index for all the other shares
 is 0 ($\times$).)
 
-\item During recovery, there are up to 31 outstanding non-\texttt{S} shares and
+\item During recovery, there are up to 31 outstanding non-\vc{S} shares and
 the user has an arbitrary subset of $k$ of them. There are $\binom{31}k$
 possibilities, which for $k=2$ is a reasonable number --- 465 --- but for
 $k\geq3$ quickly grows out of hand.
@@ -947,7 +947,7 @@ $k\geq3$ quickly grows out of hand.
 For $k = 2$ we provide a table, both in tabular form and in the form of a volvelle.
 This is what the ``Recover Share'' volvelle is, and at position $p$, window $w$ it
 computes
-\[ \ell_i(\texttt{S}) = \frac{w + \texttt{S}}{w + p} \]
+\[ \ell_i(\vc{S}) = \frac{w + \vc{S}}{w + p} \]
 Here position $p$ is the index of share $y_i$ whose multiplier is being computed,
 and $w$ is the index of the other share. This is the only volvelle which takes two
 bech32 characters and outputs a symbol, so it is clear which volvelle she should
@@ -956,11 +956,11 @@ could make this more intuitive? Not that we could think of.
 
 For $k \geq 3$, for target share $p$ (index of $y_i$) with other shares
 $\{w_i\}_{i=1}^{k-1}$, we need to compute
-\[ \ell_i(\texttt{S}) = \prod_{i=1}^{k-1} \frac{w_i + \texttt{S}}{w_i + p} \]
+\[ \ell_i(\vc{S}) = \prod_{i=1}^{k-1} \frac{w_i + \vc{S}}{w_i + p} \]
 with notation chosen to highlight that \emph{the Lagrange basis polynomials for
 $k\geq3$ are products of the basis polynomials for $k=2$}.
 
-This fortuitous fact means that the user can compute polynomials $\ell_i(\texttt{S})$
+This fortuitous fact means that the user can compute polynomials $\ell_i(\vc{S})$
 by looking up factors using the Recover Share volvelle (rotate it to index $p$ then
 read all the $w_i$'s off the front), and then multiplying the
 results using the Multiplication slide chart.
@@ -983,7 +983,7 @@ to help keep everything straight.
 
 \subsection{SSSS and Checksumming}
 
-Once the user has computed her derived share(s) or recovered her secret \texttt{S}
+Once the user has computed her derived share(s) or recovered her secret \vc{S}
 share, she will likely notice that the produced share header is of the correct form
 and has the correct index. This is cool to see but not mathematically surprising:
 the fixed parts of the header are produced by interpolating a constant polynomial
@@ -999,7 +999,7 @@ arbitrary cell, say, the fourth cell of the tenth row, you can use the above pro
 to combine those cells from the initial shares' worksheets and produce the
 corresponding cell on the derived share's worksheet.
 
-This means in particular, that the final row (\texttt{SECRETSHARE32}) will be
+This means in particular, that the final row (\vc{SECRETSHARE32}) will be
 preserved, meaning that the checksum of the derived share will be correct. But it
 also means that, if the user uses the checksum worksheet to verify her share
 translation (which she should!) she can ``sanity check'' her work by pre-deriving
